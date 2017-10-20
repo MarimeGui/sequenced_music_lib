@@ -1,0 +1,5 @@
+/target/
+**/*.rs.bk
+Cargo.lock
+sequenced_music_lib.iml
+.idea
