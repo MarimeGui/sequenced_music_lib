@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["Marime_Gui <lepro.guillaume@gmail.com>"]
 
 [dependencies]
+ordered-float = "0.5.0"
