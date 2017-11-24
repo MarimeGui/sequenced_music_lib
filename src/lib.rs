@@ -105,7 +105,8 @@ pub struct Note {
     pub end_at: u32,
     pub duration: u32,
     pub frequency: f64,
-    pub velocity: u32,
+    pub on_velocity: u32,
+    pub off_velocity: u32,
     pub instrument_id: u16
 }
 
