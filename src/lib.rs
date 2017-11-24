@@ -7,22 +7,22 @@ use ordered_float::NotNaN;
 pub mod utils;
 
 #[derive(Clone)]
-pub struct PCMData {
-    pub data: Vec<i32>,
+pub struct PCMAudio {
+    pub samples: Vec<i32>,
     pub sample_rate: u32,
     pub channels: u8
 }
 
 #[derive(Clone)]
 pub struct MusicSequencer {
-    pub pcm: PCMData,
-    pub notes: NoteList,
-    pub instruments: InstrumentList
+    pub pcm: PCMAudio,
+    pub note_list: NoteList,
+    pub instrument_list: InstrumentList
 }
 
 impl MusicSequencer {
     pub fn gen_instrument_keys(&mut self) {
-        self.notes.list_frequencies_used_by_instruments();
+        self.note_list.list_frequencies_used_by_instruments();
     }
 }
 
@@ -117,6 +117,8 @@ pub struct InstrumentList {
 #[derive(Clone)]
 pub struct Instrument {
     pub loopable: bool,
-    pub keys: HashMap<NotNaN<f64>, PCMData>,
-    pub base_frequency: f64
+    pub keys: HashMap<NotNaN<f64>, PCMAudio>,
+    pub base_frequency: Option<f64>,
+    //  key_gen_function: frequency_to_generate, target_sample_rate
+    pub key_gen_function: Option<Fn(f64, u32) -> PCMAudio>
 }
