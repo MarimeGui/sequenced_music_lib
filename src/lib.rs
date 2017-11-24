@@ -121,5 +121,5 @@ pub struct Instrument {
     pub keys: HashMap<NotNaN<f64>, PCMAudio>,
     pub base_frequency: Option<f64>,
     //  key_gen_function: frequency_to_generate, target_sample_rate
-    pub key_gen_function: Option<Fn(f64, u32) -> PCMAudio>
+    pub key_gen_function: Option<fn(f64, u32) -> PCMAudio>
 }
