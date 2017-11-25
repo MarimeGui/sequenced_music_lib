@@ -3,8 +3,8 @@ use ordered_float::NotNaN;
 use super::Note;
 use super::NoteList;
 
-pub fn calculate_frequency(key: f64, base_key: f64) -> f64 {
-    (2f64.powf((key - base_key) / 12f64)) * 440f64
+pub fn calculate_frequency(key: f64, base_key: i32) -> f64 {
+    (2f64.powf((key - (base_key as f64)) / 12f64)) * 440f64
 }
 
 #[derive(Clone)]

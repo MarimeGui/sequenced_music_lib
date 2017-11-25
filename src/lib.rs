@@ -6,10 +6,23 @@ use ordered_float::NotNaN;
 
 pub mod utils;
 
+static mut SAMPLE_RATE: u32 = 48000;
+
+pub fn get_sample_rate() -> u32 {
+    unsafe {
+        SAMPLE_RATE.clone()
+    }
+}
+
+pub fn set_sample_rate(new_sr: u32) {
+    unsafe {
+        SAMPLE_RATE = new_sr;
+    }
+}
+
 #[derive(Clone)]
 pub struct PCMAudio {
     pub samples: Vec<i32>,
-    pub sample_rate: u32,
     pub channels: u8
 }
 
@@ -120,6 +133,12 @@ pub struct Instrument {
     pub loopable: bool,
     pub keys: HashMap<NotNaN<f64>, PCMAudio>,
     pub base_frequency: Option<f64>,
-    //  key_gen_function: frequency_to_generate, target_sample_rate
-    pub key_gen_function: Option<fn(f64, u32) -> PCMAudio>
+    //  key_gen_function: frequency_to_generate
+    pub key_gen_function: Option<fn(f64) -> PCMAudio>
+}
+
+impl Instrument {
+    pub fn gen_key(frequency: f64) {
+
+    }
 }
