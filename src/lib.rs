@@ -5,6 +5,7 @@ use std::cmp::max;
 use ordered_float::NotNaN;
 
 pub mod utils;
+mod error;
 
 static mut SAMPLE_RATE: u32 = 48000;
 
@@ -22,8 +23,15 @@ pub fn set_sample_rate(new_sr: u32) {
 
 #[derive(Clone)]
 pub struct PCMAudio {
-    pub samples: Vec<i32>,
+    pub samples: Vec<Vec<i32>>,
+    pub sample_rate: u32,
     pub channels: u8
+}
+
+impl PCMAudio {
+    pub fn change_pitch(&mut self, original_freq: f64, target_freq: f64) {
+        unimplemented!();
+    }
 }
 
 #[derive(Clone)]
@@ -138,7 +146,16 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn gen_key(frequency: f64) {
-
+    pub fn gen_key(&mut self, frequency: f64) {
+        if self.key_gen_function.is_some() {
+            let new_key = self.key_gen_function.unwrap()(frequency);
+            self.keys.insert(NotNaN::new(frequency).unwrap(), new_key);
+        } else {
+            let base_frequency = self.base_frequency.unwrap();
+            let orig_key = self.keys.get(&NotNaN::new(base_frequency).unwrap()).unwrap().clone();
+            let mut new_key = orig_key.clone();
+            new_key.change_pitch(base_frequency, frequency);
+            self.keys.insert(NotNaN::new(frequency).unwrap(), new_key);
+        }
     }
 }
