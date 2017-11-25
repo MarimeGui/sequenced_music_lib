@@ -137,6 +137,9 @@ impl Instrument {
     pub fn gen_key(&mut self, frequency: &f64) {
         if self.key_gen_function.is_some() {
             let new_key = self.key_gen_function.unwrap()(frequency);
+            if new_key.sample_rate != get_sample_rate() {
+                panic!();
+            }
             self.keys.insert(NotNaN::new(frequency.clone()).unwrap(), new_key);
         } else {
             let base_frequency = &self.base_frequency.unwrap();
