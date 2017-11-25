@@ -3,6 +3,8 @@ extern crate ordered_float;
 use std::collections::HashMap;
 use std::cmp::max;
 use ordered_float::NotNaN;
+use std::result::Result;
+use std::error::Error;
 
 pub mod utils;
 mod error;
@@ -42,14 +44,14 @@ pub struct MusicSequencer {
 }
 
 impl MusicSequencer {
-    pub fn gen_instrument_keys(&mut self) {
-        let list = self.note_list.list_frequencies_used_by_instruments();
-        for (instrument_id, frequencies) in &list {
+    pub fn gen_instrument_keys(&mut self) -> Result<(), Box<Error>> {
+        for (instrument_id, frequencies) in &self.note_list.list_frequencies_used_by_instruments().unwrap() {
             let instrument = self.instrument_list.instruments.get_mut(instrument_id).unwrap();
             for frequency in frequencies {
-                instrument.gen_key(frequency);
+                instrument.gen_key(frequency)?;
             }
         }
+        Ok(())
     }
 }
 
@@ -73,7 +75,10 @@ impl NoteList {
     pub fn sort_by_time(&mut self) {
         self.notes.sort_by(|a, b| a.start_at.cmp(&b.start_at));
     }
-    pub fn calc_max_notes_at_once(&mut self) -> u32 {
+    pub fn calc_max_notes_at_once(&mut self) -> Result<u32, Box<Error>> {
+        if self.notes.is_empty() {
+            return Err(Box::new(error::NoNotesInListError {}));
+        }
         self.sort_by_time();
         let mut max_notes_at_once = 1u32;
         let mut to_delete: Vec<u32> = Vec::new();
@@ -94,9 +99,12 @@ impl NoteList {
             notes_to_compare.push(current_note.clone());
             max_notes_at_once = max(max_notes_at_once, notes_to_compare.len() as u32);
         }
-        max_notes_at_once
+        Ok(max_notes_at_once)
     }
-    pub fn list_frequencies_used_by_instruments(&mut self) -> HashMap<u16, Vec<f64>> {
+    pub fn list_frequencies_used_by_instruments(&mut self) -> Result<HashMap<u16, Vec<f64>>, error::NoNotesInListError> {
+        if self.notes.is_empty() {
+            return Err(error::NoNotesInListError {});
+        }
         let mut frequencies_used_by_instruments: HashMap<u16, Vec<f64>> = HashMap::new();
         for current_note in &self.notes {
             let frequency_list = &mut *frequencies_used_by_instruments.entry(current_note.instrument_id).or_insert(Vec::new());
@@ -104,7 +112,7 @@ impl NoteList {
                 frequency_list.push(current_note.frequency);
             };
         }
-        frequencies_used_by_instruments
+        Ok(frequencies_used_by_instruments)
     }
 }
 
@@ -134,19 +142,21 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn gen_key(&mut self, frequency: &f64) {
+    pub fn gen_key(&mut self, frequency: &f64) -> Result<(), Box<Error>> {
+        error::check_correct_frequency(frequency)?;
         if self.key_gen_function.is_some() {
             let new_key = self.key_gen_function.unwrap()(frequency);
             if new_key.sample_rate != get_project_sample_rate() {
-                panic!();
+                return Err(Box::new(error::WrongSampleRateError {}));
             }
-            self.keys.insert(NotNaN::new(frequency.clone()).unwrap(), new_key);
+            self.keys.insert(NotNaN::new(frequency.clone())?, new_key);
+            Ok(())
         } else {
-            let base_frequency = &self.base_frequency.unwrap();
-            let orig_key = self.keys.get(&NotNaN::new(base_frequency.clone()).unwrap()).unwrap().clone();
-            let mut new_key = orig_key.clone();
+            let base_frequency = &self.base_frequency.ok_or(Box::new(error::MissingBaseFrequencyError {}))?;
+            let mut new_key = self.keys.get(&NotNaN::new(base_frequency.clone())?).ok_or(Box::new(error::OriginalKeyNotFoundError {}))?.clone();
             new_key.change_pitch(&base_frequency, &frequency);
-            self.keys.insert(NotNaN::new(frequency.clone()).unwrap(), new_key);
+            self.keys.insert(NotNaN::new(frequency.clone())?, new_key);
+            Ok(())
         }
     }
 }
