@@ -29,7 +29,7 @@ pub struct PCMAudio {
 }
 
 impl PCMAudio {
-    pub fn change_pitch(&mut self, original_freq: f64, target_freq: f64) {
+    pub fn change_pitch(&mut self, original_freq: &f64, target_freq: &f64) {
         unimplemented!();
     }
 }
@@ -43,80 +43,68 @@ pub struct MusicSequencer {
 
 impl MusicSequencer {
     pub fn gen_instrument_keys(&mut self) {
-        self.note_list.list_frequencies_used_by_instruments();
+        let list = self.note_list.list_frequencies_used_by_instruments();
+        for (instrument_id, frequencies) in &list {
+            let instrument = self.instrument_list.instruments.get_mut(instrument_id).unwrap();
+            for frequency in frequencies {
+                instrument.gen_key(frequency);
+            }
+        }
     }
 }
 
 #[derive(Clone)]
 pub struct NoteList{
-    changed_since_last_calc_max_notes_at_once: bool,
-    changed_since_last_list_frequencies_used_by_instruments: bool,
-    pub notes: Vec<Note>,
-    pub max_notes_at_once: Option<u32>,
-    pub frequencies_used_by_instruments: Option<HashMap<u16, Vec<f64>>>
+    pub notes: Vec<Note>
 }
 
 impl NoteList {
     pub fn new() -> NoteList {
         NoteList {
-            changed_since_last_calc_max_notes_at_once: false,
-            changed_since_last_list_frequencies_used_by_instruments: false,
             notes: Vec::new(),
-            max_notes_at_once: None,
-            frequencies_used_by_instruments: None
         }
     }
     pub fn add_note(&mut self, new_note: Note) {
-        self.changed_since_last_calc_max_notes_at_once = true;
-        self.changed_since_last_list_frequencies_used_by_instruments = true;
         self.notes.push(new_note);
     }
     pub fn merge_other(&mut self, other: &mut NoteList) {
-        self.changed_since_last_calc_max_notes_at_once = true;
-        self.changed_since_last_list_frequencies_used_by_instruments = true;
         self.notes.append(&mut other.notes);
     }
     pub fn sort_by_time(&mut self) {
         self.notes.sort_by(|a, b| a.start_at.cmp(&b.start_at));
     }
-    pub fn calc_max_notes_at_once(&mut self) {
-        if self.changed_since_last_calc_max_notes_at_once {
-            self.sort_by_time();
-            let mut max_notes_at_once = 1u32;
-            let mut to_delete: Vec<u32> = Vec::new();
-            let mut current_index: u32;
-            let mut notes_to_compare: Vec<Note> = Vec::new();
-            for current_note in &self.notes {
-                to_delete.clear();
-                current_index = 0;
-                for comparing_note in &notes_to_compare {
-                    if current_note.start_at > comparing_note.end_at {
-                        to_delete.push(current_index.clone());
-                    }
-                    current_index += 1;
+    pub fn calc_max_notes_at_once(&mut self) -> u32 {
+        self.sort_by_time();
+        let mut max_notes_at_once = 1u32;
+        let mut to_delete: Vec<u32> = Vec::new();
+        let mut current_index: u32;
+        let mut notes_to_compare: Vec<Note> = Vec::new();
+        for current_note in &self.notes {
+            to_delete.clear();
+            current_index = 0;
+            for comparing_note in &notes_to_compare {
+                if current_note.start_at > comparing_note.end_at {
+                    to_delete.push(current_index.clone());
                 }
-                for index in &to_delete {
-                    notes_to_compare.remove(index.clone() as usize);
-                }
-                notes_to_compare.push(current_note.clone());
-                max_notes_at_once = max(max_notes_at_once, notes_to_compare.len() as u32);
+                current_index += 1;
             }
-            self.max_notes_at_once = Some(max_notes_at_once);
-            self.changed_since_last_calc_max_notes_at_once = false;
+            for index in &to_delete {
+                notes_to_compare.remove(index.clone() as usize);
+            }
+            notes_to_compare.push(current_note.clone());
+            max_notes_at_once = max(max_notes_at_once, notes_to_compare.len() as u32);
         }
+        max_notes_at_once
     }
-    pub fn list_frequencies_used_by_instruments(&mut self) {
-        if self.changed_since_last_list_frequencies_used_by_instruments {
-            let mut frequencies_used_by_instruments: HashMap<u16, Vec<f64>> = HashMap::new();
-            for current_note in &self.notes {
-                let frequency_list = &mut *frequencies_used_by_instruments.entry(current_note.instrument_id).or_insert(Vec::new());
-                if !(frequency_list.contains(&current_note.frequency)) {
-                    frequency_list.push(current_note.frequency);
-                };
-            }
-            self.changed_since_last_list_frequencies_used_by_instruments = false;
-            self.frequencies_used_by_instruments = Some(frequencies_used_by_instruments);
+    pub fn list_frequencies_used_by_instruments(&mut self) -> HashMap<u16, Vec<f64>> {
+        let mut frequencies_used_by_instruments: HashMap<u16, Vec<f64>> = HashMap::new();
+        for current_note in &self.notes {
+            let frequency_list = &mut *frequencies_used_by_instruments.entry(current_note.instrument_id).or_insert(Vec::new());
+            if !(frequency_list.contains(&current_note.frequency)) {
+                frequency_list.push(current_note.frequency);
+            };
         }
+        frequencies_used_by_instruments
     }
 }
 
@@ -142,20 +130,20 @@ pub struct Instrument {
     pub keys: HashMap<NotNaN<f64>, PCMAudio>,
     pub base_frequency: Option<f64>,
     //  key_gen_function: frequency_to_generate
-    pub key_gen_function: Option<fn(f64) -> PCMAudio>
+    pub key_gen_function: Option<fn(&f64) -> PCMAudio>
 }
 
 impl Instrument {
-    pub fn gen_key(&mut self, frequency: f64) {
+    pub fn gen_key(&mut self, frequency: &f64) {
         if self.key_gen_function.is_some() {
             let new_key = self.key_gen_function.unwrap()(frequency);
-            self.keys.insert(NotNaN::new(frequency).unwrap(), new_key);
+            self.keys.insert(NotNaN::new(frequency.clone()).unwrap(), new_key);
         } else {
-            let base_frequency = self.base_frequency.unwrap();
-            let orig_key = self.keys.get(&NotNaN::new(base_frequency).unwrap()).unwrap().clone();
+            let base_frequency = &self.base_frequency.unwrap();
+            let orig_key = self.keys.get(&NotNaN::new(base_frequency.clone()).unwrap()).unwrap().clone();
             let mut new_key = orig_key.clone();
-            new_key.change_pitch(base_frequency, frequency);
-            self.keys.insert(NotNaN::new(frequency).unwrap(), new_key);
+            new_key.change_pitch(&base_frequency, &frequency);
+            self.keys.insert(NotNaN::new(frequency.clone()).unwrap(), new_key);
         }
     }
 }
