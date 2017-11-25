@@ -9,13 +9,13 @@ mod error;
 
 static mut SAMPLE_RATE: u32 = 48000;
 
-pub fn get_sample_rate() -> u32 {
+pub fn get_project_sample_rate() -> u32 {
     unsafe {
         SAMPLE_RATE.clone()
     }
 }
 
-pub fn set_sample_rate(new_sr: u32) {
+pub fn set_project_sample_rate(new_sr: u32) {
     unsafe {
         SAMPLE_RATE = new_sr;
     }
@@ -137,7 +137,7 @@ impl Instrument {
     pub fn gen_key(&mut self, frequency: &f64) {
         if self.key_gen_function.is_some() {
             let new_key = self.key_gen_function.unwrap()(frequency);
-            if new_key.sample_rate != get_sample_rate() {
+            if new_key.sample_rate != get_project_sample_rate() {
                 panic!();
             }
             self.keys.insert(NotNaN::new(frequency.clone()).unwrap(), new_key);
