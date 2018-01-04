@@ -9,11 +9,11 @@ use std::error::Error;
 pub mod utils;
 mod error;
 
-static mut SAMPLE_RATE: u32 = 48000;
+static mut SAMPLE_RATE: u32 = 48_000;
 
 pub fn get_project_sample_rate() -> u32 {
     unsafe {
-        SAMPLE_RATE.clone()
+        SAMPLE_RATE
     }
 }
 
@@ -25,14 +25,16 @@ pub fn set_project_sample_rate(new_sr: u32) {
 
 #[derive(Clone)]
 pub struct PCMAudio {
-    pub samples: Vec<Vec<i32>>,
-    pub sample_rate: u32,
-    pub channels: u8
+    pub samples: Vec<Vec<f64>>,
+    pub sample_rate: u32
 }
 
 impl PCMAudio {
-    pub fn change_pitch(&mut self, original_freq: &f64, target_freq: &f64) {
+    pub fn change_pitch(&mut self, original_freq: &f64, target_freq: &f64) -> Result<(), error::NotValidFrequencyError> {
+        error::check_correct_frequency(original_freq)?;
+        error::check_correct_frequency(target_freq)?;
         unimplemented!();
+        Ok(())
     }
 }
 
@@ -55,7 +57,7 @@ impl MusicSequencer {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct NoteList{
     pub notes: Vec<Note>
 }
@@ -89,12 +91,12 @@ impl NoteList {
             current_index = 0;
             for comparing_note in &notes_to_compare {
                 if current_note.start_at > comparing_note.end_at {
-                    to_delete.push(current_index.clone());
+                    to_delete.push(current_index);
                 }
                 current_index += 1;
             }
             for index in &to_delete {
-                notes_to_compare.remove(index.clone() as usize);
+                notes_to_compare.remove(index as usize);
             }
             notes_to_compare.push(current_note.clone());
             max_notes_at_once = max(max_notes_at_once, notes_to_compare.len() as u32);
@@ -107,7 +109,7 @@ impl NoteList {
         }
         let mut frequencies_used_by_instruments: HashMap<u16, Vec<f64>> = HashMap::new();
         for current_note in &self.notes {
-            let frequency_list = &mut *frequencies_used_by_instruments.entry(current_note.instrument_id).or_insert(Vec::new());
+            let frequency_list = &mut *frequencies_used_by_instruments.entry(current_note.instrument_id).or_insert_with(Vec::new());
             if !(frequency_list.contains(&current_note.frequency)) {
                 frequency_list.push(current_note.frequency);
             };
@@ -138,24 +140,24 @@ pub struct Instrument {
     pub keys: HashMap<NotNaN<f64>, PCMAudio>,
     pub base_frequency: Option<f64>,
     //  key_gen_function: frequency_to_generate
-    pub key_gen_function: Option<fn(&f64) -> PCMAudio>
+    pub key_gen_function: Option<fn(&f64) -> Result<PCMAudio, Box<Error>>>
 }
 
 impl Instrument {
     pub fn gen_key(&mut self, frequency: &f64) -> Result<(), Box<Error>> {
         error::check_correct_frequency(frequency)?;
         if self.key_gen_function.is_some() {
-            let new_key = self.key_gen_function.unwrap()(frequency);
+            let new_key = self.key_gen_function.unwrap()(frequency)?;
             if new_key.sample_rate != get_project_sample_rate() {
                 return Err(Box::new(error::WrongSampleRateError {}));
             }
-            self.keys.insert(NotNaN::new(frequency.clone())?, new_key);
+            self.keys.insert(NotNaN::new(frequency)?, new_key);
             Ok(())
         } else {
-            let base_frequency = &self.base_frequency.ok_or(Box::new(error::MissingBaseFrequencyError {}))?;
-            let mut new_key = self.keys.get(&NotNaN::new(base_frequency.clone())?).ok_or(Box::new(error::OriginalKeyNotFoundError {}))?.clone();
-            new_key.change_pitch(&base_frequency, &frequency);
-            self.keys.insert(NotNaN::new(frequency.clone())?, new_key);
+            let base_frequency = &self.base_frequency.ok_or_else(|| Box::new(error::MissingBaseFrequencyError {}))?;
+            let mut new_key = self.keys.get(&NotNaN::new(base_frequency)?).ok_or_else(|| Box::new(error::OriginalKeyNotFoundError {}))?.clone();
+            new_key.change_pitch(&base_frequency, frequency)?;
+            self.keys.insert(NotNaN::new(frequency)?, new_key);
             Ok(())
         }
     }
